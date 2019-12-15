@@ -1,10 +1,16 @@
+import random
+
 import numpy as np
 import torch
+import torch.distributions
 import torch.nn as nn
 import torch.utils.data
 import torch.utils.data
+from tqdm import trange
+import matplotlib.pyplot as plt
 
 from utils.algebra import exponential_moving_average
+from utils.constants import BATCH_SIZE
 
 
 class MutualInfoNeuralEstimationNetwork(nn.Module):
@@ -118,3 +124,31 @@ class MutualInfoNeuralEstimationTrainer:
         """
         fourth_quantile = self.mutual_info_history[-len(self.mutual_info_history) // 4:]
         return np.mean(fourth_quantile)
+
+
+def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, show=False):
+    normal_sampler = torch.distributions.normal.Normal(loc=0, scale=np.sqrt(noise_variance))
+    x = x.type(torch.float32)
+    y = y.type(torch.float32)
+    mine_net = MutualInfoNeuralEstimationNetwork(x_size=x.shape[1], y_size=y.shape[1], hidden_units=hidden_units)
+    mine_trainer = MutualInfoNeuralEstimationTrainer(mine_net)
+
+    x = x.split(BATCH_SIZE)
+    y = y.split(BATCH_SIZE)
+    n_batches = len(x)
+
+    mine_trainer.start_training()
+    for epoch in trange(epochs, desc='Optimizing MINE'):
+        for batch_id in random.sample(range(n_batches), k=n_batches):
+            y_batch = y[batch_id]
+            y_batch = y_batch + normal_sampler.sample(y_batch.shape)
+            mine_trainer.train_batch(x_batch=x[batch_id], y_batch=y_batch)
+    mine_trainer.finish_training()
+
+    if show:
+        plt.plot(np.arange(len(mine_trainer.mutual_info_history)), mine_trainer.mutual_info_history)
+        plt.xlabel('Iteration')
+        plt.ylabel('I(X;Y), bits')
+        plt.show()
+
+    return mine_trainer.get_mutual_info()

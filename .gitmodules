@@ -1,0 +1,6 @@
+[submodule "estimators/NPEET"]
+	path = estimators/NPEET
+	url = https://github.com/gregversteeg/NPEET.git
+[submodule "estimators/gcmi"]
+	path = estimators/gcmi
+	url = https://github.com/robince/gcmi.git

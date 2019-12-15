@@ -22,12 +22,12 @@ def log_softmax_data(n_samples=50000, n_classes=10, p_argmax=0.95, onehot=False)
     -------
     x_data : torch.FloatTensor
         Simulated softmax probabilities of shape (n_samples, n_classes)
-    y_labels : torch.LongTensor
+    y_labels : torch.FloatTensor
         Ground truth labels (class indices) of shape
             * (n_samples,), if `onehot` is False
             * (n_samples, n_classes), otherwise
     """
-    x_data = torch.randn(n_samples, n_classes)
+    x_data = torch.randn(n_samples, n_classes, dtype=torch.float32)
     y_labels = x_data.argmax(dim=1)
     x_argmax = x_data[range(x_data.shape[0]), y_labels]
     softmax_sum = x_data.exp().sum(dim=1) - x_argmax
