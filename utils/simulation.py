@@ -1,6 +1,11 @@
 import torch
+import torch.distributions
 import torch.utils.data
 from utils.algebra import to_onehot
+
+
+def calc_accuracy(y_true, y_pred):
+    return (y_true == y_pred).type(torch.float32).mean()
 
 
 def log_softmax_data(n_samples=50000, n_classes=10, p_argmax=0.95, onehot=False):
@@ -27,12 +32,26 @@ def log_softmax_data(n_samples=50000, n_classes=10, p_argmax=0.95, onehot=False)
             * (n_samples,), if `onehot` is False
             * (n_samples, n_classes), otherwise
     """
-    x_data = torch.randn(n_samples, n_classes, dtype=torch.float32)
-    y_labels = x_data.argmax(dim=1)
-    x_argmax = x_data[range(x_data.shape[0]), y_labels]
-    softmax_sum = x_data.exp().sum(dim=1) - x_argmax
-    x_argmax = torch.log(p_argmax * softmax_sum / (1 - p_argmax))
-    x_data[range(x_data.shape[0]), y_labels] = x_argmax
+    p_err = (1. - p_argmax) / (n_classes - 1)
+    proba_noise = torch.distributions.uniform.Uniform(low=0.5 * p_err, high=1.5 * p_err + 1e-6)
+    n_samples_correct = int(p_argmax * n_samples)
+    n_samples_incorrect = n_samples - n_samples_correct
+    x_correct = proba_noise.sample((n_samples_correct, n_classes))
+    y_correct = torch.randint(low=0, high=n_classes, size=(n_samples_correct,))
+    x_correct[range(x_correct.shape[0]), y_correct] += (p_argmax - p_err)
+
+    x_incorrect = torch.rand(n_samples_incorrect, n_classes)
+    x_sorted, argsort = x_incorrect.sort(dim=1, descending=True)
+    y_incorrect = argsort[:, 1]
+
+    x = torch.cat([x_correct, x_incorrect], dim=0)
+    y = torch.cat([y_correct, y_incorrect], dim=0)
+
+    x.log_()
+    accuracy_true = calc_accuracy(y_true=x.argmax(dim=1), y_pred=y)
+    print(f"Softmax accuracy generated={accuracy_true:.3f}, goal={p_argmax:.3f}")
+
     if onehot:
-        y_labels = to_onehot(y_labels, n_classes=n_classes)
-    return x_data, y_labels
+        y = to_onehot(y, n_classes=n_classes)
+
+    return x, y
