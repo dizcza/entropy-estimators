@@ -126,26 +126,46 @@ class MutualInfoNeuralEstimationTrainer:
         return np.mean(fourth_quantile)
 
 
-def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, show=False):
+def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, verbose=False):
+    """
+    MINE estimation of I(X;Y).
+
+    Parameters
+    ----------
+    x, y : torch.Tensor
+        Realizations of X and Y multidimensional random variables of sizes (N, xdim) and (N, ydim).
+    hidden_units : int
+        Dimensionality of the hidden layer.
+    noise_variance : float
+        Noise variance.
+    epochs : int
+        No. of training epochs on the same data.
+    verbose : bool
+        Show the training progress and the history plot or not.
+
+    Returns
+    -------
+    float:
+        Estimated I(X;Y).
+
+    """
     normal_sampler = torch.distributions.normal.Normal(loc=0, scale=np.sqrt(noise_variance))
     x = x.type(torch.float32)
     y = y.type(torch.float32)
     mine_net = MutualInfoNeuralEstimationNetwork(x_size=x.shape[1], y_size=y.shape[1], hidden_units=hidden_units)
     mine_trainer = MutualInfoNeuralEstimationTrainer(mine_net)
 
-    x = x.split(BATCH_SIZE)
-    y = y.split(BATCH_SIZE)
-    n_batches = len(x)
-
     mine_trainer.start_training()
-    for epoch in trange(epochs, desc='Optimizing MINE'):
-        for batch_id in random.sample(range(n_batches), k=n_batches):
-            y_batch = y[batch_id]
+    for epoch in trange(epochs, desc='Optimizing MINE', disable=not verbose):
+        permutation = torch.randperm(x.shape[0])
+        x_perm = x[permutation].split(BATCH_SIZE)
+        y_perm = y[permutation].split(BATCH_SIZE)
+        for x_batch, y_batch in zip(x_perm, y_perm):
             y_batch = y_batch + normal_sampler.sample(y_batch.shape)
-            mine_trainer.train_batch(x_batch=x[batch_id], y_batch=y_batch)
+            mine_trainer.train_batch(x_batch=x_batch, y_batch=y_batch)
     mine_trainer.finish_training()
 
-    if show:
+    if verbose:
         plt.plot(np.arange(len(mine_trainer.mutual_info_history)), mine_trainer.mutual_info_history)
         plt.xlabel('Iteration')
         plt.ylabel('I(X;Y), bits')
