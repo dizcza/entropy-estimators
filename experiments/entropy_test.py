@@ -59,21 +59,28 @@ class EntropyTest:
         return estimated
 
 
-def entropy_normal(n_samples, n_features, param):
+def _entropy_normal(n_samples, n_features, param):
     x = np.random.normal(loc=0, scale=param, size=(n_samples, n_features))
     value_true = n_features * np.log2(param * np.sqrt(2 * np.pi * np.e))
     return x, value_true
 
 
-def entropy_uniform(n_samples, n_features, param):
+def _entropy_uniform(n_samples, n_features, param):
     x = np.random.uniform(low=-param / 2, high=param / 2, size=(n_samples, n_features))
     value_true = n_features * np.log2(param)
     return x, value_true
 
 
-def entropy_test(generator, n_samples=1000, n_features=10, xlabel=''):
+def _entropy_exponential(n_samples, n_features, param):
+    # here param is scale (inverse of rate)
+    x = np.random.exponential(scale=param, size=(n_samples, n_features))
+    value_true = n_features * (1. + np.log(param)) * np.log2(np.e)
+    return x, value_true
+
+
+def entropy_test(generator, n_samples=1000, n_features=10, param_range=(1, 50), xlabel=''):
     estimated = defaultdict(list)
-    parameters = np.linspace(2, 50, num=10)
+    parameters = np.linspace(*param_range, num=10)
     for param in tqdm(parameters, desc="entropy_test"):
         x, true = generator(n_samples, n_features, param)
         estimated_test = EntropyTest(x=x, entropy_true=true, verbose=False).run_all()
@@ -86,12 +93,14 @@ def entropy_test(generator, n_samples=1000, n_features=10, xlabel=''):
     plt.plot(parameters, value_true, label='true', ls='--')
     plt.xlabel(xlabel)
     plt.ylabel('Estimated entropy, bits')
+    plt.title(generator.__name__)
     plt.legend()
     plt.show()
 
 
 if __name__ == '__main__':
     set_seed(26)
-    entropy_test(entropy_uniform, n_features=100, xlabel='Uniform width')
-    entropy_test(entropy_normal, xlabel='Sigma (normal scale)')
+    entropy_test(_entropy_uniform, n_features=100, xlabel='Uniform width')
+    entropy_test(_entropy_normal, xlabel='Sigma (scale)')
+    entropy_test(_entropy_exponential, n_features=100, xlabel='Scale (inverse rate)')
     Timer.checkpoint()
