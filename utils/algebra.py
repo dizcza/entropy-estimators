@@ -37,18 +37,18 @@ def mutual_info_upperbound(accuracy, n_classes):
 
     Parameters
     ----------
-    accuracy : float
+    accuracy : np.ndarray or float
         The model accuracy.
     n_classes : int
         No. of classes in a dataset.
 
     Returns
     -------
-    float
+    np.ndarray or float
         Mutual information upper bound for a model, trained to the accuracy of `accuracy` on a dataset with
         `n_classes` unique classes.
     """
-    entropy_correct = accuracy * math.log2(1 / accuracy)
-    entropy_incorrect = (1 - accuracy) / math.log2((n_classes - 1) / (1 - accuracy))
+    entropy_correct = accuracy * np.log2(1. / accuracy)
+    entropy_incorrect = (1. - accuracy) * np.log2((n_classes - 1) / (1. - accuracy + 1e-10))
     noise_entropy = entropy_correct + entropy_incorrect
-    return math.log2(n_classes) - noise_entropy
+    return np.log2(n_classes) - noise_entropy
