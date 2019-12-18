@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from estimators import npeet_entropy, gcmi_entropy, discrete_entropy
 from utils.common import set_seed, timer_profile, Timer
+from utils.constants import IMAGES_DIR
 
 
 class EntropyTest:
@@ -92,7 +93,7 @@ def _entropy_exponential(n_samples, n_features, param):
 
 
 def _entropy_randint(n_samples, n_features, param):
-    x = np.random.randint(low=0, high=param + 1, size=(n_samples, n_features))
+    x = np.random.randint(low=0, high=param + 1, size=(n_samples, n_features)) + 3
     value_true = n_features * np.log2(param)
     return x, value_true
 
@@ -106,21 +107,22 @@ def entropy_test(generator, n_samples=1000, n_features=10, parameters=np.linspac
         for estimator_name, estimator_value in estimated_test.items():
             estimated[estimator_name].append(estimator_value)
     value_true = estimated.pop('true')
+    plt.figure()
     for estimator_name, estimator_value in estimated.items():
         plt.plot(parameters, estimator_value, label=estimator_name)
     plt.plot(parameters, value_true, label='true', ls='--')
     plt.xlabel(xlabel)
     plt.ylabel('Estimated entropy, bits')
-    plt.title(generator.__name__)
+    plt.title(f"{generator.__name__}, size ({n_samples},{n_features})")
     plt.legend()
+    plt.savefig(IMAGES_DIR / f"{generator.__name__}.png")
     plt.show()
 
 
 if __name__ == '__main__':
     set_seed(26)
-    entropy_test(_entropy_randint, n_samples=2000, n_features=11, parameters=np.arange(1, 10), xlabel='Width')
-    entropy_test(_entropy_normal_correlated, n_features=100, xlabel='Sigma')
-    # entropy_test(_entropy_normal, n_features=90, xlabel='Sigma (scale)')
-    entropy_test(_entropy_uniform, n_features=100, xlabel='Uniform width')
-    entropy_test(_entropy_exponential, n_features=100, xlabel='Scale (inverse rate)')
+    entropy_test(_entropy_randint, n_samples=2000, n_features=11, parameters=np.arange(1, 10), xlabel='~ [0, high=x]')
+    entropy_test(_entropy_normal_correlated, n_features=100, xlabel='~ MultiVariateNormal(0, cov~x)')
+    entropy_test(_entropy_uniform, n_features=100, xlabel='~ Uniform(0, x)')
+    entropy_test(_entropy_exponential, n_features=100, xlabel='~ Exp(scale=x)')
     Timer.checkpoint()
