@@ -65,6 +65,19 @@ def _entropy_normal(n_samples, n_features, param):
     return x, value_true
 
 
+def _entropy_normal_correlated(n_samples, n_features, param):
+    denom = np.arange(1, n_features + 1)
+    variance = param ** 2 / denom
+    cov = np.zeros((n_features, n_features))
+    for row_id in range(n_features):
+        cov[row_id, row_id:] = variance[:n_features-row_id]
+    cov = (cov + cov.T) / 2
+    x = np.random.multivariate_normal(mean=np.repeat(0, n_features), cov=cov, size=n_samples)
+    logdet = np.linalg.slogdet(cov)[1] * np.log2(np.e)
+    value_true = 0.5 * (n_features * np.log2(2 * np.pi * np.e) + logdet)
+    return x, value_true
+
+
 def _entropy_uniform(n_samples, n_features, param):
     x = np.random.uniform(low=-param / 2, high=param / 2, size=(n_samples, n_features))
     value_true = n_features * np.log2(param)
@@ -100,7 +113,8 @@ def entropy_test(generator, n_samples=1000, n_features=10, param_range=(1, 50), 
 
 if __name__ == '__main__':
     set_seed(26)
+    entropy_test(_entropy_normal_correlated, n_features=100, xlabel='Sigma')
+    # entropy_test(_entropy_normal, n_features=90, xlabel='Sigma (scale)')
     entropy_test(_entropy_uniform, n_features=100, xlabel='Uniform width')
-    entropy_test(_entropy_normal, xlabel='Sigma (scale)')
     entropy_test(_entropy_exponential, n_features=100, xlabel='Scale (inverse rate)')
     Timer.checkpoint()
