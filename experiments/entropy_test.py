@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-from estimators import npeet_entropy, gcmi_entropy
+from estimators import npeet_entropy, gcmi_entropy, discrete_entropy
 from utils.common import set_seed, timer_profile, Timer
 
 
@@ -91,9 +91,14 @@ def _entropy_exponential(n_samples, n_features, param):
     return x, value_true
 
 
-def entropy_test(generator, n_samples=1000, n_features=10, param_range=(1, 50), xlabel=''):
+def _entropy_randint(n_samples, n_features, param):
+    x = np.random.randint(low=0, high=param + 1, size=(n_samples, n_features))
+    value_true = n_features * np.log2(param)
+    return x, value_true
+
+
+def entropy_test(generator, n_samples=1000, n_features=10, parameters=np.linspace(1, 50, num=10), xlabel=''):
     estimated = defaultdict(list)
-    parameters = np.linspace(*param_range, num=10)
     for param in tqdm(parameters, desc="entropy_test"):
         x, true = generator(n_samples, n_features, param)
         estimated_test = EntropyTest(x=x, entropy_true=true, verbose=False).run_all()
@@ -113,6 +118,7 @@ def entropy_test(generator, n_samples=1000, n_features=10, param_range=(1, 50), 
 
 if __name__ == '__main__':
     set_seed(26)
+    entropy_test(_entropy_randint, n_samples=2000, n_features=11, parameters=np.arange(1, 10), xlabel='Width')
     entropy_test(_entropy_normal_correlated, n_features=100, xlabel='Sigma')
     # entropy_test(_entropy_normal, n_features=90, xlabel='Sigma (scale)')
     entropy_test(_entropy_uniform, n_features=100, xlabel='Uniform width')
