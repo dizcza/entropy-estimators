@@ -7,6 +7,7 @@ from tqdm import tqdm
 from estimators import npeet_entropy, gcmi_entropy, discrete_entropy
 from utils.common import set_seed, timer_profile, Timer
 from utils.constants import IMAGES_DIR
+from utils.algebra import entropy_normal_theoretic
 
 
 class EntropyTest:
@@ -32,7 +33,7 @@ class EntropyTest:
         Returns
         -------
         float
-            Estimated I(X;Y).
+            Estimated Entropy H(X).
 
         """
         return npeet_entropy(self.x, k=k)
@@ -45,7 +46,7 @@ class EntropyTest:
         Returns
         -------
         float
-            Estimated I(X;Y).
+            Estimated Entropy H(X).
 
         """
         return gcmi_entropy(self.x.T)
@@ -53,29 +54,26 @@ class EntropyTest:
     def run_all(self):
         estimated = {}
         for estimator in (self.npeet, self.gcmi):
-            estimated[estimator.__name__] = estimator()
+            try:
+                estimated[estimator.__name__] = estimator()
+            except Exception:
+                estimated[estimator.__name__] = np.nan
         if self.verbose:
             for estimator_name, estimator_value in estimated.items():
                 print(f"{estimator_name} H(X)={estimator_value:.3f} (true value: {self.entropy_true:.3f})")
         return estimated
 
 
-def _entropy_normal(n_samples, n_features, param):
-    x = np.random.normal(loc=0, scale=param, size=(n_samples, n_features))
-    value_true = n_features * np.log2(param * np.sqrt(2 * np.pi * np.e))
-    return x, value_true
+def generate_normal_correlated(n_samples, n_features, sigma):
+    cov = np.random.uniform(low=0, high=sigma, size=(n_features, n_features))
+    cov = cov.dot(cov.T)  # make cov positive definite
+    x = np.random.multivariate_normal(mean=np.repeat(0, n_features), cov=cov, size=n_samples)
+    value_true = entropy_normal_theoretic(cov)
+    return x, value_true, cov
 
 
 def _entropy_normal_correlated(n_samples, n_features, param):
-    denom = np.arange(1, n_features + 1)
-    variance = param ** 2 / denom
-    cov = np.zeros((n_features, n_features))
-    for row_id in range(n_features):
-        cov[row_id, row_id:] = variance[:n_features-row_id]
-    cov = (cov + cov.T) / 2
-    x = np.random.multivariate_normal(mean=np.repeat(0, n_features), cov=cov, size=n_samples)
-    logdet = np.linalg.slogdet(cov)[1] * np.log2(np.e)
-    value_true = 0.5 * (n_features * np.log2(2 * np.pi * np.e) + logdet)
+    x, value_true, cov = generate_normal_correlated(n_samples, n_features, param)
     return x, value_true
 
 
@@ -93,7 +91,7 @@ def _entropy_exponential(n_samples, n_features, param):
 
 
 def _entropy_randint(n_samples, n_features, param):
-    x = np.random.randint(low=0, high=param + 1, size=(n_samples, n_features)) + 3
+    x = np.random.randint(low=0, high=param + 1, size=(n_samples, n_features))
     value_true = n_features * np.log2(param)
     return x, value_true
 
@@ -108,9 +106,9 @@ def entropy_test(generator, n_samples=1000, n_features=10, parameters=np.linspac
             estimated[estimator_name].append(estimator_value)
     value_true = estimated.pop('true')
     plt.figure()
+    plt.plot(parameters, value_true, label='true', ls='--')
     for estimator_name, estimator_value in estimated.items():
         plt.plot(parameters, estimator_value, label=estimator_name)
-    plt.plot(parameters, value_true, label='true', ls='--')
     plt.xlabel(xlabel)
     plt.ylabel('Estimated entropy, bits')
     plt.title(f"{generator.__name__}, size ({n_samples},{n_features})")

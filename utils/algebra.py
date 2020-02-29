@@ -1,9 +1,23 @@
 import numpy as np
-import math
 import torch
 
 
-def exponential_moving_average(array, window: int):
+def exponential_moving_average(array, window):
+    """
+    Exponential moving average in a sliding window.
+
+    Parameters
+    ----------
+    array : (N,) np.ndarray
+        Input array-like.
+    window : int
+        Sliding window width.
+
+    Returns
+    -------
+    out : (N,) np.ndarrat
+        Filtered array of the same length.
+    """
     array = np.asarray(array)
     alpha = 2 / (window + 1.0)
     alpha_rev = 1 - alpha
@@ -52,3 +66,11 @@ def mutual_info_upperbound(accuracy, n_classes):
     entropy_incorrect = (1. - accuracy) * np.log2((n_classes - 1) / (1. - accuracy + 1e-10))
     noise_entropy = entropy_correct + entropy_incorrect
     return np.log2(n_classes) - noise_entropy
+
+
+def entropy_normal_theoretic(cov):
+    assert cov.shape[0] == cov.shape[1]
+    n_features = cov.shape[0]
+    logdet = np.linalg.slogdet(cov)[1] * np.log2(np.e)
+    value_true = 0.5 * (n_features * np.log2(2 * np.pi * np.e) + logdet)
+    return value_true

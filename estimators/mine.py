@@ -1,5 +1,9 @@
-import random
+"""
+Mutual Information Neural Estimation (MINE).
+"""
+from collections import deque
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.distributions
@@ -7,7 +11,6 @@ import torch.nn as nn
 import torch.utils.data
 import torch.utils.data
 from tqdm import trange
-import matplotlib.pyplot as plt
 
 from utils.algebra import exponential_moving_average
 from utils.constants import BATCH_SIZE
@@ -55,6 +58,8 @@ class MutualInfoNeuralEstimationNetwork(nn.Module):
 
 class MutualInfoNeuralEstimationTrainer:
 
+    log2_e = np.log2(np.e)
+
     def __init__(self, mine_model, learning_rate=1e-3):
         """
         Parameters
@@ -95,7 +100,8 @@ class MutualInfoNeuralEstimationTrainer:
         y_batch = y_batch[torch.randperm(y_batch.shape[0], device=y_batch.device)]
         pred_marginal = self.mine_model(x_batch, y_batch)
         mutual_info_lower_bound = pred_joint.mean() - pred_marginal.exp().mean().log()
-        self.mutual_info_history.append(mutual_info_lower_bound.item())
+        mi_bits = mutual_info_lower_bound.item() * self.log2_e  # convert nats to bits
+        self.mutual_info_history.append(mi_bits)
         loss = -mutual_info_lower_bound  # maximize
         loss.backward()
         self.optimizer.step()
@@ -112,21 +118,33 @@ class MutualInfoNeuralEstimationTrainer:
         for repeat in range(filter_rounds):
             self.mutual_info_history = exponential_moving_average(self.mutual_info_history,
                                                                   window=filter_size)
-        # convert nats to bits
-        self.mutual_info_history = np.multiply(self.mutual_info_history, np.log2(np.e))
+
+    def _smooth(self, filter_size=30):
+        return exponential_moving_average(self.mutual_info_history, window=filter_size)
+
+    def show_history(self):
+        plt.plot(self.mutual_info_history, alpha=0.2, label='raw')
+        mi_smooth = self._smooth()
+        mi_argmax = mi_smooth.argmax()
+        plt.plot(mi_smooth, linestyle='--', color='#ff7f0e', label='filtered')
+        plt.legend()
+        plt.xlabel("Iteration")
+        plt.ylabel("I(X;Y), bits")
+        plt.title(f"max(I) = {mi_smooth[mi_argmax]:.2f} bits")
+        plt.scatter(mi_argmax, mi_smooth[mi_argmax], c='#ff7f0e', marker='D')
+        plt.show()
 
     def get_mutual_info(self):
         """
         Returns
         -------
         float
-            Estimated lower bound of mutual information as the mean of the last quarter history points.
+            Estimated mutual information lower bound.
         """
-        fourth_quantile = self.mutual_info_history[-len(self.mutual_info_history) // 4:]
-        return np.mean(fourth_quantile)
+        return self._smooth().max()
 
 
-def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, verbose=False):
+def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, tol=1e-2, verbose=False):
     """
     MINE estimation of I(X;Y).
 
@@ -140,6 +158,9 @@ def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, verbose=False):
         Noise variance.
     epochs : int
         No. of training epochs on the same data.
+    tol : float
+        Tolerance of the estimator. If 5 successive epochs don't improve the best estimate by more than `tol`,
+        the training stops.
     verbose : bool
         Show the training progress and the history plot or not.
 
@@ -149,12 +170,14 @@ def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, verbose=False):
         Estimated I(X;Y).
 
     """
+    x = torch.as_tensor(x, dtype=torch.float32)
+    y = torch.as_tensor(y, dtype=torch.float32)
     normal_sampler = torch.distributions.normal.Normal(loc=0, scale=np.sqrt(noise_variance))
-    x = x.type(torch.float32)
-    y = y.type(torch.float32)
     mine_net = MutualInfoNeuralEstimationNetwork(x_size=x.shape[1], y_size=y.shape[1], hidden_units=hidden_units)
     mine_trainer = MutualInfoNeuralEstimationTrainer(mine_net)
 
+    mi_last = deque(maxlen=5)
+    mi_last.append(0.)
     mine_trainer.start_training()
     for epoch in trange(epochs, desc='Optimizing MINE', disable=not verbose):
         permutation = torch.randperm(x.shape[0])
@@ -163,12 +186,12 @@ def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, verbose=False):
         for x_batch, y_batch in zip(x_perm, y_perm):
             y_batch = y_batch + normal_sampler.sample(y_batch.shape)
             mine_trainer.train_batch(x_batch=x_batch, y_batch=y_batch)
-    mine_trainer.finish_training()
+        mi_curr = mine_trainer.get_mutual_info()
+        mi_last.append(mi_curr)
+        if np.std(mi_last) < tol:
+            break
 
     if verbose:
-        plt.plot(np.arange(len(mine_trainer.mutual_info_history)), mine_trainer.mutual_info_history)
-        plt.xlabel('Iteration')
-        plt.ylabel('I(X;Y), bits')
-        plt.show()
+        mine_trainer.show_history()
 
     return mine_trainer.get_mutual_info()
