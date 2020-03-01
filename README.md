@@ -37,7 +37,7 @@ The input to estimators are arrays of size `(n_samples, n_features)`.
 
 ![](images/_entropy_exponential.png)
 
-2. MultiVariateNormal distribution with a covariance matrix with diagonal elements equal to `x^2` and smaller non-diagonal covariance values. For std=1 and `n_features=3`,
+2. MultiVariateNormal distribution with a covariance matrix with diagonal elements equal to `x^2` and smaller non-diagonal covariance values. The covariance matrix for `sigma=1` and `n_features=3` is
 
 ```
 [[1.         0.25       0.16666667]

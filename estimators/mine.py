@@ -131,7 +131,7 @@ class MutualInfoNeuralEstimationTrainer:
         plt.xlabel("Iteration")
         plt.ylabel("I(X;Y), bits")
         plt.title(f"max(I) = {mi_smooth[mi_argmax]:.2f} bits")
-        plt.scatter(mi_argmax, mi_smooth[mi_argmax], c='#ff7f0e', marker='D')
+        plt.scatter(mi_argmax, mi_smooth[mi_argmax], c='#ff7f0e', marker='x')
         plt.show()
 
     def get_mutual_info(self):
@@ -144,7 +144,7 @@ class MutualInfoNeuralEstimationTrainer:
         return self._smooth().max()
 
 
-def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, tol=1e-2, verbose=False):
+def mine_mi(x, y, hidden_units=64, noise_std=0., epochs=10, tol=1e-2, verbose=False):
     """
     MINE estimation of I(X;Y).
 
@@ -154,8 +154,8 @@ def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, tol=1e-2, verbos
         Realizations of X and Y multidimensional random variables of sizes (N, xdim) and (N, ydim).
     hidden_units : int
         Dimensionality of the hidden layer.
-    noise_variance : float
-        Noise variance.
+    noise_std : float
+        Additive noise standard deviation (scale).
     epochs : int
         No. of training epochs on the same data.
     tol : float
@@ -172,7 +172,7 @@ def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, tol=1e-2, verbos
     """
     x = torch.as_tensor(x, dtype=torch.float32)
     y = torch.as_tensor(y, dtype=torch.float32)
-    normal_sampler = torch.distributions.normal.Normal(loc=0, scale=np.sqrt(noise_variance))
+    normal_sampler = torch.distributions.normal.Normal(loc=0, scale=noise_std)
     mine_net = MutualInfoNeuralEstimationNetwork(x_size=x.shape[1], y_size=y.shape[1], hidden_units=hidden_units)
     mine_trainer = MutualInfoNeuralEstimationTrainer(mine_net)
 

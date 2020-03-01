@@ -1,17 +1,14 @@
-import math
-import warnings
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import numpy as np
-import sklearn.cluster
 from tqdm import tqdm
 
-from estimators import mine_mi, npeet_mi, gcmi_mi, discrete_mi, discrete_entropy
+from estimators import mine_mi, npeet_mi, gcmi_mi
 from experiments.entropy_test import generate_normal_correlated
 from utils.algebra import entropy_normal_theoretic
 from utils.common import set_seed, timer_profile, Timer
-from utils.constants import IMAGES_DIR
+from utils.constants import IMAGES_DIR, TIMINGS_DIR
 
 
 class MITest:
@@ -71,45 +68,15 @@ class MITest:
         return gcmi_mi(x, y)
 
     @timer_profile
-    def kmeans(self, n_clusters=None):
-        x = self.normalize(self.x)
-        y = self.normalize(self.y)
-        xy = np.c_[x, y]
-
-        def _kmeans(n_cl):
-            cluster = sklearn.cluster.KMeans(n_clusters=n_cl, n_init=2, max_iter=10)
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                x_clusters = cluster.fit_predict(x)
-                y_clusters = cluster.fit_predict(y)
-                xy_clusters = cluster.fit_predict(xy)
-            h_x = discrete_entropy(x_clusters)
-            h_y = discrete_entropy(y_clusters)
-            h_xy = discrete_entropy(xy_clusters)
-            return h_x + h_y - h_xy
-
-        if n_clusters is None:
-            n_clusters_max = math.ceil(math.sqrt(x.shape[0]))
-            n_clusters_max = max(2, n_clusters_max)
-            n_candidates = np.arange(n_clusters_max, 2*n_clusters_max + 1, step=1, dtype=int)
-            n_candidates = np.arange(n_clusters_max, x.shape[0] // 2, step=50)
-            mi = {n_cl: _kmeans(n_cl) for n_cl in n_candidates}
-            if self.verbose:
-                plt.plot(list(mi.keys()), list(mi.values()))
-                plt.show()
-            return max(mi.values())
-
-        return _kmeans(n_clusters)
-
-    @timer_profile
     def mine(self):
         x = self.normalize(self.x)
         y = self.normalize(self.y)
-        return mine_mi(x, y, hidden_units=128, epochs=50, verbose=self.verbose)
+        noise_std = 0.1 * np.std(x)
+        return mine_mi(x, y, hidden_units=128, epochs=50, noise_std=noise_std, verbose=self.verbose)
 
     def run_all(self):
         estimated = {}
-        for estimator in (self.npeet, self.gcmi, self.mine, self.kmeans):
+        for estimator in (self.npeet, self.gcmi, self.mine):
             try:
                 estimated[estimator.__name__] = estimator()
             except Exception as e:
@@ -127,8 +94,9 @@ def _mi_squared_integers(n_samples, n_features, param):
     return x, y, value_true
 
 
-def _mi_normal_correlated(n_samples, n_features, param):
-    xy, h_xy, cov_xy = generate_normal_correlated(n_samples, 2 * n_features, param)
+def _mi_normal_correlated(n_samples, n_features, param, loc=None):
+    # 2*n_features to generate both X and Y
+    xy, h_xy, cov_xy = generate_normal_correlated(n_samples, 2 * n_features, sigma=param, loc=loc)
     x, y = np.split(xy, 2, axis=1)
     cov_x = cov_xy[:n_features, :n_features]
     cov_y = cov_xy[n_features:, n_features:]
@@ -138,7 +106,13 @@ def _mi_normal_correlated(n_samples, n_features, param):
     return x, y, value_true
 
 
-def _mi_additive_noise(n_samples, n_features, param):
+def _mi_normal_different_location(n_samples, n_features, param):
+    # generate Multivariate Normal samples with sigma=10 and uniform locations
+    loc = np.random.uniform(low=0, high=param, size=2 * n_features)
+    return _mi_normal_correlated(n_samples=n_samples, n_features=n_features, param=10, loc=loc)
+
+
+def _mi_additive_normal_noise(n_samples, n_features, param):
     x, h_x, cov_x = generate_normal_correlated(n_samples, n_features, param)
     noise, h_noise, cov_noise = generate_normal_correlated(n_samples, n_features, 0.5 * param)
     y = x + noise
@@ -149,30 +123,38 @@ def _mi_additive_noise(n_samples, n_features, param):
 
 def mi_test(generator, n_samples=1000, n_features=10, parameters=np.linspace(1, 50, num=10), xlabel=''):
     estimated = defaultdict(list)
-    for param in tqdm(parameters, desc="entropy_test"):
+    for param in tqdm(parameters, desc=f"{generator.__name__} test"):
         x, y, mi_true = generator(n_samples, n_features, param)
-        # MITest(x=x, y=y, mi_true=mi_true, verbose=True).mine()
         estimated_test = MITest(x=x, y=y, mi_true=mi_true, verbose=False).run_all()
         estimated['true'].append(mi_true)
         for estimator_name, estimator_value in estimated_test.items():
             estimated[estimator_name].append(estimator_value)
     value_true = estimated.pop('true')
     plt.figure()
-    plt.plot(parameters, value_true, label='true', ls='--')
+    plt.plot(parameters, value_true, label='true', ls='--', marker='x')
     for estimator_name, estimator_value in estimated.items():
         plt.plot(parameters, estimator_value, label=estimator_name)
     plt.xlabel(xlabel)
     plt.ylabel('Estimated Mutual Information, bits')
-    plt.title(f"{generator.__name__}, size ({n_samples},{n_features})")
+    plt.title(f"{generator.__name__.lstrip('_mi_')}: len(X)={n_samples}, dim(X)={n_features}")
     plt.legend()
     plt.savefig(IMAGES_DIR / f"{generator.__name__}.png")
     plt.show()
 
 
-if __name__ == '__main__':
+def mi_all_tests(n_samples=10_000, n_features=10):
     set_seed(26)
-    # mi_test(_mi_squared_integers, n_samples=1000, n_features=5, xlabel='X ~ [0, x]; Y = X ^ 2')
-    # mi_test(_mi_normal_correlated, n_samples=1000, n_features=5, xlabel='XY ~ N(0, cov); cov ~ x')
-    mi_test(_mi_additive_noise, n_samples=1000, n_features=5, xlabel='X ~ N(0, x); Y = X + Noise')
+    mi_test(_mi_squared_integers, n_samples=n_samples, n_features=n_features,
+            xlabel=r'$X \sim $Randint$(0, x); Y = X^2$')
+    mi_test(_mi_normal_correlated, n_samples=n_samples, n_features=n_features,
+            xlabel=r'$XY \sim \mathcal{N}(0, \sigma^2), \sigma \sim $Uniform$(0, x)$')
+    mi_test(_mi_additive_normal_noise, n_samples=n_samples, n_features=n_features,
+            xlabel=r'$X \sim \mathcal{N}(0, x^2); Y = X + \epsilon,'
+                   r'\epsilon \sim \mathcal{N}(0,\left(\frac{x}{2}\right)^2$)')
+    mi_test(_mi_normal_different_location, n_samples=n_samples, n_features=n_features,
+            xlabel=r'$XY \sim \mathcal{N}(\mu, 10^2), \mu \sim $Uniform$(0, x)$')
+    Timer.checkpoint(fpath=TIMINGS_DIR / "mutual_information.txt")
 
-    Timer.checkpoint()
+
+if __name__ == '__main__':
+    mi_all_tests()

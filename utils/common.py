@@ -1,3 +1,4 @@
+import random
 import time
 from collections import defaultdict
 from functools import wraps
@@ -11,14 +12,17 @@ class Timer:
     timings = defaultdict(list)
 
     @staticmethod
-    def checkpoint():
-        for func_name, elapsed_ms_list in Timer.timings.items():
-            print(f"{func_name}: {np.mean(elapsed_ms_list):.3f} ms")
+    def checkpoint(fpath=None):
+        def print_all(file=None):
+            for func_name, elapsed_ms_list in Timer.timings.items():
+                print(f"{func_name}: {np.mean(elapsed_ms_list):.3f} ms", file=file)
+        print_all()
+        if fpath is not None:
+            with open(fpath, 'w') as f:
+                print_all(file=f)
 
 
 def set_seed(seed: int):
-    import random
-    import numpy as np
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

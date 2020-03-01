@@ -42,7 +42,7 @@ class SoftmaxTest:
         """
         labels = to_onehot(self.labels)
         estimated = mine_mi(self.softmax, y=labels, hidden_units=hidden_units,
-                            noise_variance=noise_variance, epochs=epochs, verbose=self.verbose)
+                            noise_std=noise_variance, epochs=epochs, verbose=self.verbose)
         return estimated
 
     def kmeans(self, n_clusters=None):

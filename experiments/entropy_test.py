@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-from estimators import npeet_entropy, gcmi_entropy, discrete_entropy
-from utils.common import set_seed, timer_profile, Timer
-from utils.constants import IMAGES_DIR
+from estimators import npeet_entropy, gcmi_entropy
 from utils.algebra import entropy_normal_theoretic
+from utils.common import set_seed, timer_profile, Timer
+from utils.constants import IMAGES_DIR, TIMINGS_DIR
 
 
 class EntropyTest:
@@ -64,63 +64,70 @@ class EntropyTest:
         return estimated
 
 
-def generate_normal_correlated(n_samples, n_features, sigma):
+def generate_normal_correlated(n_samples, n_features, sigma, loc=None):
     cov = np.random.uniform(low=0, high=sigma, size=(n_features, n_features))
     cov = cov.dot(cov.T)  # make cov positive definite
-    x = np.random.multivariate_normal(mean=np.repeat(0, n_features), cov=cov, size=n_samples)
-    value_true = entropy_normal_theoretic(cov)
-    return x, value_true, cov
+    if loc is None:
+        loc = np.repeat(0, n_features)
+    x = np.random.multivariate_normal(mean=loc, cov=cov, size=n_samples)
+    entropy_true = entropy_normal_theoretic(cov)
+    return x, entropy_true, cov
 
 
 def _entropy_normal_correlated(n_samples, n_features, param):
-    x, value_true, cov = generate_normal_correlated(n_samples, n_features, param)
-    return x, value_true
+    x, entropy_true, cov = generate_normal_correlated(n_samples, n_features, param)
+    return x, entropy_true
 
 
 def _entropy_uniform(n_samples, n_features, param):
-    x = np.random.uniform(low=-param / 2, high=param / 2, size=(n_samples, n_features))
-    value_true = n_features * np.log2(param)
-    return x, value_true
+    x = np.random.uniform(low=0, high=param, size=(n_samples, n_features))
+    entropy_true = n_features * np.log2(param)
+    return x, entropy_true
 
 
 def _entropy_exponential(n_samples, n_features, param):
     # here param is scale (inverse of rate)
     x = np.random.exponential(scale=param, size=(n_samples, n_features))
-    value_true = n_features * (1. + np.log(param)) * np.log2(np.e)
-    return x, value_true
+    entropy_true = n_features * (1. + np.log(param)) * np.log2(np.e)
+    return x, entropy_true
 
 
 def _entropy_randint(n_samples, n_features, param):
     x = np.random.randint(low=0, high=param + 1, size=(n_samples, n_features))
-    value_true = n_features * np.log2(param)
-    return x, value_true
+    entropy_true = n_features * np.log2(param)
+    return x, entropy_true
 
 
 def entropy_test(generator, n_samples=1000, n_features=10, parameters=np.linspace(1, 50, num=10), xlabel=''):
     estimated = defaultdict(list)
-    for param in tqdm(parameters, desc="entropy_test"):
-        x, true = generator(n_samples, n_features, param)
-        estimated_test = EntropyTest(x=x, entropy_true=true, verbose=False).run_all()
-        estimated['true'].append(true)
+    for param in tqdm(parameters, desc=f"{generator.__name__} test"):
+        x, entropy_true = generator(n_samples, n_features, param)
+        estimated_test = EntropyTest(x=x, entropy_true=entropy_true, verbose=False).run_all()
+        estimated['true'].append(entropy_true)
         for estimator_name, estimator_value in estimated_test.items():
             estimated[estimator_name].append(estimator_value)
-    value_true = estimated.pop('true')
+    entropy_true = estimated.pop('true')
     plt.figure()
-    plt.plot(parameters, value_true, label='true', ls='--')
+    plt.plot(parameters, entropy_true, label='true', ls='--', marker='x')
     for estimator_name, estimator_value in estimated.items():
         plt.plot(parameters, estimator_value, label=estimator_name)
     plt.xlabel(xlabel)
     plt.ylabel('Estimated entropy, bits')
-    plt.title(f"{generator.__name__}, size ({n_samples},{n_features})")
+    plt.title(f"{generator.__name__.lstrip('_')}: len(X)={n_samples}, dim(X)={n_features}")
     plt.legend()
     plt.savefig(IMAGES_DIR / f"{generator.__name__}.png")
     plt.show()
 
 
-if __name__ == '__main__':
+def entropy_all_tests(n_samples=10_000, n_features=10):
     set_seed(26)
-    entropy_test(_entropy_randint, n_samples=2000, n_features=11, parameters=np.arange(1, 10), xlabel='~ [0, high=x]')
-    entropy_test(_entropy_normal_correlated, n_features=100, xlabel='~ MultiVariateNormal(0, cov~x)')
-    entropy_test(_entropy_uniform, n_features=100, xlabel='~ Uniform(0, x)')
-    entropy_test(_entropy_exponential, n_features=100, xlabel='~ Exp(scale=x)')
-    Timer.checkpoint()
+    entropy_test(_entropy_randint, n_samples=n_samples, n_features=n_features, xlabel=r'$X \sim $Randint$(0, x)$')
+    entropy_test(_entropy_normal_correlated, n_samples=n_samples, n_features=n_features,
+                 xlabel=r'$X \sim \mathcal{N}(0, \sigma^2), \sigma \sim $Uniform$(0, x)$')
+    entropy_test(_entropy_uniform, n_samples=n_samples, n_features=n_features, xlabel=r'$X \sim $Uniform$(0, x)$')
+    entropy_test(_entropy_exponential, n_samples=n_samples, n_features=n_features, xlabel=r'$X \sim $Exp(scale=x)')
+    Timer.checkpoint(fpath=TIMINGS_DIR / "entropy.txt")
+
+
+if __name__ == '__main__':
+    entropy_all_tests()
