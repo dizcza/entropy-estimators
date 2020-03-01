@@ -188,7 +188,7 @@ def mine_mi(x, y, hidden_units=64, noise_variance=0, epochs=10, tol=1e-2, verbos
             mine_trainer.train_batch(x_batch=x_batch, y_batch=y_batch)
         mi_curr = mine_trainer.get_mutual_info()
         mi_last.append(mi_curr)
-        if np.std(mi_last) < tol:
+        if len(mi_last) == mi_last.maxlen and np.std(mi_last) < tol:
             break
 
     if verbose:

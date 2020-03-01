@@ -1,19 +1,17 @@
+import math
+import warnings
 from collections import defaultdict
 
-from functools import cmp_to_key
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
-import warnings
 import sklearn.cluster
+from tqdm import tqdm
 
-from estimators import npeet_entropy, gcmi_entropy, discrete_entropy, mine_mi, npeet_mi, gcmi_mi, discrete_mi
+from estimators import mine_mi, npeet_mi, gcmi_mi, discrete_mi, discrete_entropy
+from experiments.entropy_test import generate_normal_correlated
+from utils.algebra import entropy_normal_theoretic
 from utils.common import set_seed, timer_profile, Timer
 from utils.constants import IMAGES_DIR
-from utils.algebra import entropy_normal_theoretic
-
-from experiments.entropy_test import generate_normal_correlated
-import warnings
 
 
 class MITest:
@@ -74,55 +72,44 @@ class MITest:
 
     @timer_profile
     def kmeans(self, n_clusters=None):
+        x = self.normalize(self.x)
+        y = self.normalize(self.y)
+        xy = np.c_[x, y]
+
         def _kmeans(n_cl):
             cluster = sklearn.cluster.KMeans(n_clusters=n_cl, n_init=2, max_iter=10)
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
-                x_clusters = cluster.fit_predict(self.x)
-                y_clusters = cluster.fit_predict(self.y)
-            return discrete_mi(x_clusters, y_clusters)
-
-        def mycmp(n_cl1, n_cl2):
-            mi_diff = mi_rough[n_cl1] - mi_rough[n_cl2]
-            if np.isclose(mi_diff, 0):
-                # minimize penalty
-                return n_cl2 - n_cl1
-            return mi_diff
-
-        def _explore(n_clusters_range):
-            converged = True
-            n_clusters_prev = 0
-            for n_cl in n_clusters_range:
-                n_cl = int(n_cl)
-                if n_cl in mi_rough:
-                    continue
-                mi_value = _kmeans(n_cl)
-                diff = abs(mi_value - mi_rough[n_clusters_prev])
-                if diff < 1e-2:
-                    return converged
-                mi_rough[n_cl] = mi_value
-                n_clusters_prev = n_cl
-            return False
+                x_clusters = cluster.fit_predict(x)
+                y_clusters = cluster.fit_predict(y)
+                xy_clusters = cluster.fit_predict(xy)
+            h_x = discrete_entropy(x_clusters)
+            h_y = discrete_entropy(y_clusters)
+            h_xy = discrete_entropy(xy_clusters)
+            return h_x + h_y - h_xy
 
         if n_clusters is None:
-            mi_rough = defaultdict(lambda: -np.inf)
-            if _explore(np.power(2, np.linspace(1, np.log2(len(self.x)), num=10))):
-                n_clusters = max(mi_rough.keys(), key=cmp_to_key(mycmp))
-                left = 3 * n_clusters // 4
-                right = n_clusters
-                _explore(np.linspace(left, right, num=5, endpoint=False, dtype=int))
-            return max(mi_rough.values())
+            n_clusters_max = math.ceil(math.sqrt(x.shape[0]))
+            n_clusters_max = max(2, n_clusters_max)
+            n_candidates = np.arange(n_clusters_max, 2*n_clusters_max + 1, step=1, dtype=int)
+            n_candidates = np.arange(n_clusters_max, x.shape[0] // 2, step=50)
+            mi = {n_cl: _kmeans(n_cl) for n_cl in n_candidates}
+            if self.verbose:
+                plt.plot(list(mi.keys()), list(mi.values()))
+                plt.show()
+            return max(mi.values())
+
         return _kmeans(n_clusters)
 
     @timer_profile
     def mine(self):
         x = self.normalize(self.x)
         y = self.normalize(self.y)
-        return mine_mi(x, y, hidden_units=64, epochs=50, verbose=self.verbose)
+        return mine_mi(x, y, hidden_units=128, epochs=50, verbose=self.verbose)
 
     def run_all(self):
         estimated = {}
-        for estimator in (self.npeet, self.gcmi, self.mine):
+        for estimator in (self.npeet, self.gcmi, self.mine, self.kmeans):
             try:
                 estimated[estimator.__name__] = estimator()
             except Exception as e:
@@ -185,7 +172,7 @@ def mi_test(generator, n_samples=1000, n_features=10, parameters=np.linspace(1, 
 if __name__ == '__main__':
     set_seed(26)
     # mi_test(_mi_squared_integers, n_samples=1000, n_features=5, xlabel='X ~ [0, x]; Y = X ^ 2')
-    mi_test(_mi_normal_correlated, n_samples=1000, n_features=5, xlabel='XY ~ N(0, cov); cov ~ x')
-    # mi_test(_mi_additive_noise, n_samples=1000, n_features=5, xlabel='X ~ N(0, x); Y = X + Noise')
+    # mi_test(_mi_normal_correlated, n_samples=1000, n_features=5, xlabel='XY ~ N(0, cov); cov ~ x')
+    mi_test(_mi_additive_noise, n_samples=1000, n_features=5, xlabel='X ~ N(0, x); Y = X + Noise')
 
     Timer.checkpoint()
