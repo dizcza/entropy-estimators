@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 from estimators import mine_mi, npeet_mi, gcmi_mi
-from experiments.entropy_test import generate_normal_correlated
+from benchmark.entropy_test import generate_normal_correlated
 from utils.algebra import entropy_normal_theoretic
 from utils.common import set_seed, timer_profile, Timer
 from utils.constants import IMAGES_DIR, TIMINGS_DIR

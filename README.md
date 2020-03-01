@@ -35,5 +35,5 @@ To run tests locally,
 
 3. Run the benchmark:
 
-    * entropy: `python experiments/entropy_test.py`
-    * mutual information: `python experiments/mutual_information_test.py`
+    * entropy: `python benchmark/entropy_test.py`
+    * mutual information: `python benchmark/mutual_information_test.py`

@@ -1,6 +1,6 @@
 ## Mutual Information Estimators
 
-Benchmark file source: [`experiments/entropy_test.py`](../experiments/entropy_test.py).
+Benchmark file source: [`benchmark/entropy_test.py`](../benchmark/entropy_test.py).
 
 For different distribution families, one test is performed to compare estimated mutual information with the true (theoretical) value.
 
