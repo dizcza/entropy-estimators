@@ -32,3 +32,11 @@ For continuous distributions, the _differential_ entropy is computed.
 3. Uniform distribution `U(0, x)`
 
    ![](images/_entropy_uniform.png)
+
+
+## Estimator's running time
+
+```
+npeet: 308.763 ms
+gcmi: 0.827 ms
+```

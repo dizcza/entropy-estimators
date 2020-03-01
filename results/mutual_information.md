@@ -40,3 +40,12 @@ This example illustrates imperfectness of GCMI, for it requires the matrix `Cxy 
 3. Same as in \[1\] with additive Gaussian noise.
 
    ![](images/_mi_additive_normal_noise.png)
+
+
+## Estimator's running time
+
+```
+npeet: 3405.442 ms
+gcmi: 56.724 ms
+mine: 2683.995 ms
+```
