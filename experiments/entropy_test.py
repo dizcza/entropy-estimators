@@ -116,14 +116,14 @@ def entropy_test(generator, n_samples=1000, n_features=10, parameters=np.linspac
     plt.title(f"{generator.__name__.lstrip('_')}: len(X)={n_samples}, dim(X)={n_features}")
     plt.legend()
     plt.savefig(IMAGES_DIR / f"{generator.__name__}.png")
-    plt.show()
+    # plt.show()
 
 
 def entropy_all_tests(n_samples=10_000, n_features=10):
     set_seed(26)
     entropy_test(_entropy_randint, n_samples=n_samples, n_features=n_features, xlabel=r'$X \sim $Randint$(0, x)$')
     entropy_test(_entropy_normal_correlated, n_samples=n_samples, n_features=n_features,
-                 xlabel=r'$X \sim \mathcal{N}(0, \sigma^2), \sigma \sim $Uniform$(0, x)$')
+                 xlabel=r'$X \sim \mathcal{N}(0, \Sigma^\top \Sigma), \Sigma_{ij} \sim $Uniform$(0, x)$')
     entropy_test(_entropy_uniform, n_samples=n_samples, n_features=n_features, xlabel=r'$X \sim $Uniform$(0, x)$')
     entropy_test(_entropy_exponential, n_samples=n_samples, n_features=n_features, xlabel=r'$X \sim $Exp(scale=x)')
     Timer.checkpoint(fpath=TIMINGS_DIR / "entropy.txt")

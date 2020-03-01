@@ -1,0 +1,3 @@
+npeet: 3405.442 ms
+gcmi: 56.724 ms
+mine: 2683.995 ms
