@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-from estimators import mine_mi, npeet_mi, gcmi_mi
 from benchmark.entropy_test import generate_normal_correlated
+from estimators import mine_mi, npeet_mi, gcmi_mi
 from utils.algebra import entropy_normal_theoretic
 from utils.common import set_seed, timer_profile, Timer
 from utils.constants import IMAGES_DIR, TIMINGS_DIR
@@ -50,7 +50,8 @@ class MITest:
 
     @staticmethod
     def add_noise(x):
-        return x + np.random.normal(loc=0, scale=1e-9, size=x.shape)
+        return x + np.random.normal(
+            loc=0, scale=1e-5, size=x.shape).astype(np.float32)
 
     @timer_profile
     def gcmi(self):

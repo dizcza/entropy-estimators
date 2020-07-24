@@ -1,4 +1,6 @@
 import numpy as np
+from functools import partial
+
 from estimators import npeet_entropy, gcmi_entropy
 
 
@@ -21,7 +23,10 @@ def micd(x, y, entropy_estimator=npeet_entropy):
         Estimated I(X; Y) in bits.
     """
     axis = 0
-    if entropy_estimator is gcmi_entropy:
+    original_function = entropy_estimator
+    if isinstance(original_function, partial):
+        original_function = original_function.func
+    if original_function is gcmi_entropy:
         x = x.T
         axis = 1
     entropy_x = entropy_estimator(x)
