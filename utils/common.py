@@ -1,11 +1,10 @@
 import random
-import time
 from collections import defaultdict
-from functools import wraps
 
 import numpy as np
+import time
 import torch
-import torch.utils.data
+from functools import wraps
 
 
 class Timer:

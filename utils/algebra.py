@@ -1,46 +1,4 @@
 import numpy as np
-import torch
-
-
-def exponential_moving_average(array, window):
-    """
-    Exponential moving average in a sliding window.
-
-    Parameters
-    ----------
-    array : (N,) np.ndarray
-        Input array-like.
-    window : int
-        Sliding window width.
-
-    Returns
-    -------
-    out : (N,) np.ndarrat
-        Filtered array of the same length.
-    """
-    array = np.asarray(array)
-    alpha = 2 / (window + 1.0)
-    alpha_rev = 1 - alpha
-    n = array.shape[0]
-
-    pows = alpha_rev ** (np.arange(n + 1))
-
-    scale_arr = 1 / pows[:-1]
-    offset = array[0] * pows[1:]
-    pw0 = alpha * alpha_rev ** (n - 1)
-
-    mult = array * pw0 * scale_arr
-    cumsums = mult.cumsum()
-    out = offset + cumsums * scale_arr[::-1]
-    return out
-
-
-def to_onehot(y_labels, n_classes=None):
-    if n_classes is None:
-        n_classes = len(y_labels.unique(sorted=False))
-    y_onehot = torch.zeros(y_labels.shape[0], n_classes, dtype=torch.int64)
-    y_onehot[torch.arange(y_onehot.shape[0]), y_labels] = 1
-    return y_onehot
 
 
 def mutual_info_upperbound(accuracy, n_classes):
@@ -74,3 +32,68 @@ def entropy_normal_theoretic(cov):
     logdet = np.linalg.slogdet(cov)[1] * np.log2(np.e)
     value_true = 0.5 * (n_features * np.log2(2 * np.pi * np.e) + logdet)
     return value_true
+
+
+def nearestPD(matrix):
+    """
+    Find the nearest positive-definite matrix to input
+
+    A Python/Numpy port of John D'Errico's `nearestSPD` MATLAB code [1], which
+    credits [2].
+
+    [1] https://www.mathworks.com/matlabcentral/fileexchange/42885-nearestspd
+
+    [2] N.J. Higham, "Computing a nearest symmetric positive semidefinite
+    matrix" (1988): https://doi.org/10.1016/0024-3795(88)90223-6
+    """
+    if isPD(matrix):
+        return matrix
+
+    B = (matrix + matrix.T) / 2
+    _, s, V = np.linalg.svd(B)
+
+    H = np.dot(V.T, np.dot(np.diag(s), V))
+
+    A2 = (B + H) / 2
+
+    A3 = (A2 + A2.T) / 2
+
+    if isPD(A3):
+        return A3
+
+    spacing = np.spacing(np.linalg.norm(matrix))
+    # The above is different from [1]. It appears that MATLAB's `chol` Cholesky
+    # decomposition will accept matrixes with exactly 0-eigenvalue, whereas
+    # Numpy's will not. So where [1] uses `eps(mineig)` (where `eps` is Matlab
+    # for `np.spacing`), we use the above definition. CAVEAT: our `spacing`
+    # will be much larger than [1]'s `eps(mineig)`, since `mineig` is usually on
+    # the order of 1e-16, and `eps(1e-16)` is on the order of 1e-34, whereas
+    # `spacing` will, for Gaussian random matrixes of small dimension, be on
+    # othe order of 1e-16. In practice, both ways converge, as the unit test
+    # below suggests.
+    I = np.eye(matrix.shape[0])
+    k = 1
+    while not isPD(A3):
+        mineig = np.min(np.real(np.linalg.eigvals(A3)))
+        A3 += I * (-mineig * k ** 2 + spacing)
+        k += 1
+
+    return A3
+
+
+def isPD(B):
+    """Returns true when input is positive-definite, via Cholesky"""
+    try:
+        _ = np.linalg.cholesky(B)
+        return True
+    except np.linalg.LinAlgError:
+        return False
+
+
+if __name__ == '__main__':
+    for i in range(2, 10):
+        for j in range(2, 100):
+            A = np.random.randn(j, i)
+            B = nearestPD(A)
+            assert (isPD(B))
+    print('unit test passed!')
