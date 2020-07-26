@@ -18,7 +18,7 @@ For complete analyses, refer to [Entropy estimation](results/entropy.md) or [Mut
 
 To illustrate an example, below is a benchmark of mutual information estimation of normally distributed X and Y covariates:
 
-![](results/images/_mi_normal_correlated.png)
+![](results/mutual_information/images/distributions/_mi_normal_correlated.png)
 
 
 ### Running locally

@@ -14,9 +14,11 @@ from estimators.gcmi.python.gcmi import gcmi_model_cd
 from mighty.models import MLP
 from mighty.utils.algebra import to_onehot
 from utils.common import set_seed, timer_profile, Timer
-from utils.constants import IMAGES_DIR
+from utils.constants import RESULTS_DIR
 
-IMAGES_MUTUAL_INFO_CLASSIFIER_DIR = IMAGES_DIR / "mutual_info" / "classifier"
+
+IMAGES_MUTUAL_INFO_CLASSIFIER_DIR = RESULTS_DIR.joinpath(
+    "mutual_information", "images", "classifier")
 
 
 class Classifier:
@@ -280,6 +282,7 @@ def mi_test(method='sample_gaussian_mixture', n_samples=10000, n_features=10,
     else:
         # a string
         method_name = method
+    method_name = method_name.replace('sample_', '')
     for param in tqdm(parameters, desc=f"{method_name} test"):
         if callable(method):
             n_features = None
@@ -307,8 +310,7 @@ def mi_test(method='sample_gaussian_mixture', n_samples=10000, n_features=10,
         title = f"{title}, dim(X)={n_features}"
     plt.title(title)
     plt.legend()
-    plt.savefig(IMAGES_MUTUAL_INFO_CLASSIFIER_DIR /
-                f"{method_name.lstrip('sample_')}.png")
+    plt.savefig(IMAGES_MUTUAL_INFO_CLASSIFIER_DIR / f"{method_name}.png")
     # plt.show()
 
 

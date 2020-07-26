@@ -7,7 +7,9 @@ from tqdm import tqdm
 from estimators import npeet_entropy, gcmi_entropy
 from utils.algebra import entropy_normal_theoretic
 from utils.common import set_seed, timer_profile, Timer
-from utils.constants import IMAGES_DIR, TIMINGS_DIR
+from utils.constants import RESULTS_DIR, TIMINGS_DIR
+
+IMAGES_ENTROPY_DIR = RESULTS_DIR / "entropy" / "images"
 
 
 class EntropyTest:
@@ -115,7 +117,7 @@ def entropy_test(generator, n_samples=1000, n_features=10, parameters=np.linspac
     plt.ylabel('Estimated entropy, bits')
     plt.title(f"{generator.__name__.lstrip('_')}: len(X)={n_samples}, dim(X)={n_features}")
     plt.legend()
-    plt.savefig(IMAGES_DIR / f"{generator.__name__}.png")
+    plt.savefig(IMAGES_ENTROPY_DIR / f"{generator.__name__}.png")
     # plt.show()
 
 
@@ -126,7 +128,7 @@ def entropy_all_tests(n_samples=10_000, n_features=10):
                  xlabel=r'$X \sim \mathcal{N}(0, \Sigma^\top \Sigma), \Sigma_{ij} \sim $Uniform$(0, x)$')
     entropy_test(_entropy_uniform, n_samples=n_samples, n_features=n_features, xlabel=r'$X \sim $Uniform$(0, x)$')
     entropy_test(_entropy_exponential, n_samples=n_samples, n_features=n_features, xlabel=r'$X \sim $Exp(scale=x)')
-    Timer.checkpoint(fpath=TIMINGS_DIR / "entropy.txt")
+    Timer.checkpoint()
 
 
 if __name__ == '__main__':

@@ -8,7 +8,11 @@ from benchmark.entropy_test import generate_normal_correlated
 from estimators import mine_mi, npeet_mi, gcmi_mi
 from utils.algebra import entropy_normal_theoretic
 from utils.common import set_seed, timer_profile, Timer
-from utils.constants import IMAGES_DIR, TIMINGS_DIR
+from utils.constants import RESULTS_DIR, TIMINGS_DIR
+
+
+IMAGES_MUTUAL_INFO_DISTRIBUTIONS_DIR = RESULTS_DIR.joinpath(
+    "mutual_information", "images", "distributions")
 
 
 class MITest:
@@ -150,7 +154,7 @@ def mi_test(generator, n_samples=1000, n_features=10, parameters=np.linspace(1, 
     plt.ylabel('Estimated Mutual Information, bits')
     plt.title(f"{generator.__name__.lstrip('_mi_')}: len(X)={n_samples}, dim(X)={n_features}")
     plt.legend()
-    plt.savefig(IMAGES_DIR / f"{generator.__name__}.png")
+    plt.savefig(IMAGES_MUTUAL_INFO_DISTRIBUTIONS_DIR / f"{generator.__name__}.png")
     # plt.show()
 
 
