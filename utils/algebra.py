@@ -34,9 +34,9 @@ def entropy_normal_theoretic(cov):
     return value_true
 
 
-def nearestPD(matrix):
+def nearestPD(A):
     """
-    Find the nearest positive-definite matrix to input
+    Find the nearest positive-definite matrix to the input matrix `A`.
 
     A Python/Numpy port of John D'Errico's `nearestSPD` MATLAB code [1], which
     credits [2].
@@ -46,10 +46,10 @@ def nearestPD(matrix):
     [2] N.J. Higham, "Computing a nearest symmetric positive semidefinite
     matrix" (1988): https://doi.org/10.1016/0024-3795(88)90223-6
     """
-    if isPD(matrix):
-        return matrix
+    if isPD(A):
+        return A
 
-    B = (matrix + matrix.T) / 2
+    B = (A + A.T) / 2
     _, s, V = np.linalg.svd(B)
 
     H = np.dot(V.T, np.dot(np.diag(s), V))
@@ -61,7 +61,7 @@ def nearestPD(matrix):
     if isPD(A3):
         return A3
 
-    spacing = np.spacing(np.linalg.norm(matrix))
+    spacing = np.spacing(np.linalg.norm(A))
     # The above is different from [1]. It appears that MATLAB's `chol` Cholesky
     # decomposition will accept matrixes with exactly 0-eigenvalue, whereas
     # Numpy's will not. So where [1] uses `eps(mineig)` (where `eps` is Matlab
@@ -71,7 +71,7 @@ def nearestPD(matrix):
     # `spacing` will, for Gaussian random matrixes of small dimension, be on
     # othe order of 1e-16. In practice, both ways converge, as the unit test
     # below suggests.
-    I = np.eye(matrix.shape[0])
+    I = np.eye(A.shape[0])
     k = 1
     while not isPD(A3):
         mineig = np.min(np.real(np.linalg.eigvals(A3)))

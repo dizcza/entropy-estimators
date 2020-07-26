@@ -8,13 +8,15 @@ from functools import partial
 from torch.utils.data import TensorDataset
 from tqdm import tqdm, trange
 
-from estimators import mine_mi, discrete_entropy, micd, \
-    npeet_entropy, gcmi_entropy
-from estimators import npeet_mi, gcmi_mi
+from estimators import mine_mi, discrete_entropy, micd, npeet_entropy, \
+    npeet_mi, gcmi_mi
+from estimators.gcmi.python.gcmi import gcmi_model_cd
 from mighty.models import MLP
 from mighty.utils.algebra import to_onehot
 from utils.common import set_seed, timer_profile, Timer
 from utils.constants import IMAGES_DIR
+
+IMAGES_MUTUAL_INFO_CLASSIFIER_DIR = IMAGES_DIR / "mutual_info" / "classifier"
 
 
 class Classifier:
@@ -36,7 +38,9 @@ class Classifier:
             lr=1e-3, weight_decay=1e-5)
         criterion = nn.CrossEntropyLoss()
         dataset = TensorDataset(x, y)
-        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        loader = torch.utils.data.DataLoader(dataset,
+                                             batch_size=self.batch_size,
+                                             shuffle=True)
 
         if torch.cuda.is_available():
             self.model.cuda()
@@ -58,7 +62,8 @@ class Classifier:
         self.model.eval()
         x = torch.from_numpy(x).type(torch.float32)
         dataset = TensorDataset(x)
-        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size,
+        loader = torch.utils.data.DataLoader(dataset,
+                                             batch_size=self.batch_size,
                                              shuffle=False)
 
         y_pred = []
@@ -110,7 +115,7 @@ class GaussianMixture:
         mutual_info_true = discrete_entropy(y_labels)
         return x_features, y_labels, mutual_info_true
 
-    def sample_softmax(self, n_samples=1000):
+    def sample_gaussian_mixture_softmax(self, n_samples=1000):
         def filter_correct(x_features, y_labels):
             y_proba = classifier.predict_proba(x_features)
             correct = y_proba.argmax(axis=1) == y_labels
@@ -159,6 +164,14 @@ def plot_gmm(x=None, y=None):
     plt.xlabel('x0')
     plt.ylabel('x1')
     plt.show()
+
+
+def sample_softmax_argmax(n_samples=1000, n_classes=10):
+    proba = np.random.uniform(size=(n_samples, n_classes))
+    proba /= proba.sum(axis=1, keepdims=True)
+    argmax = proba.argmax(axis=1)
+    mutual_info_true = discrete_entropy(argmax)
+    return proba, argmax, mutual_info_true
 
 
 class MutualInfoTest:
@@ -224,7 +237,11 @@ class MutualInfoTest:
         """
         x = self.normalize(self.x)
         if self.is_integer(self.y):
-            return micd(x, self.y, entropy_estimator=gcmi_entropy)
+            # micd(x, self.y, entropy_estimator=gcmi_entropy) is not stable:
+            # The Cholesky decomposition sometimes cannot be computed from
+            # a subset of X data: x|y=yi. In this case, an error "Matrix is
+            # not positive definite" is thrown.
+            return gcmi_model_cd(x.T, self.y, Ym=len(np.unique(self.y)))
         y = self.normalize(self.y)
         y = self.add_noise(y)
         return gcmi_mi(x.T, y.T)
@@ -254,11 +271,24 @@ class MutualInfoTest:
 
 
 def mi_test(method='sample_gaussian_mixture', n_samples=10000, n_features=10,
-            parameters=np.linspace(2, 50, num=10), xlabel=''):
+            parameters=np.linspace(2, 50, num=10, dtype=int),
+            xlabel='num. of classes'):
+    IMAGES_MUTUAL_INFO_CLASSIFIER_DIR.mkdir(exist_ok=True, parents=True)
     estimated = defaultdict(list)
-    for param in tqdm(parameters, desc=f"{method} test"):
-        gaussian_mixture = GaussianMixture(n_features=n_features, n_classes=param)
-        generator = getattr(gaussian_mixture, method)
+    if callable(method):
+        method_name = method.__name__
+    else:
+        # a string
+        method_name = method
+    for param in tqdm(parameters, desc=f"{method_name} test"):
+        if callable(method):
+            n_features = None
+            generator = partial(method, n_classes=param)
+        else:
+            # a string
+            gaussian_mixture = GaussianMixture(n_features=n_features,
+                                               n_classes=param)
+            generator = getattr(gaussian_mixture, method)
         x, y, mi_true = generator(n_samples=n_samples)
         estimated_test = MutualInfoTest(x=x, y=y, mi_true=mi_true,
                                         verbose=False).run_all()
@@ -272,18 +302,22 @@ def mi_test(method='sample_gaussian_mixture', n_samples=10000, n_features=10,
         plt.plot(parameters, estimator_value, label=estimator_name)
     plt.xlabel(xlabel)
     plt.ylabel('Estimated Mutual Information, bits')
-    plt.title(
-        f"{method}: len(X)={n_samples}, dim(X)={n_features}")
+    title = f"{method_name}: len(X)={n_samples}"
+    if n_features is not None:
+        title = f"{title}, dim(X)={n_features}"
+    plt.title(title)
     plt.legend()
-    # plt.savefig(IMAGES_DIR / f"{method}.png")
-    plt.show()
+    plt.savefig(IMAGES_MUTUAL_INFO_CLASSIFIER_DIR /
+                f"{method_name.lstrip('sample_')}.png")
+    # plt.show()
 
 
 def mi_test_verbose(n_samples=10000, n_features=2,
                     parameters=np.linspace(30, 50, num=10, dtype=int)):
     for param in tqdm(parameters, desc=f"test"):
-        gaussian_mixture = GaussianMixture(n_features=n_features, n_classes=param, verbose=True)
-        x, y, mi_true = gaussian_mixture.sample_softmax(n_samples)
+        gaussian_mixture = GaussianMixture(n_features=n_features,
+                                           n_classes=param, verbose=True)
+        x, y, mi_true = gaussian_mixture.sample_gaussian_mixture_softmax(n_samples)
         estimated_test = MutualInfoTest(x=x, y=y, mi_true=mi_true,
                                         verbose=True).gcmi()
         print(estimated_test)
@@ -292,5 +326,8 @@ def mi_test_verbose(n_samples=10000, n_features=2,
 if __name__ == '__main__':
     set_seed(26)
     # plot_gmm()
-    mi_test(method='sample_softmax')
+    # mi_test_verbose()
+    mi_test(method='sample_gaussian_mixture')
+    mi_test(method='sample_gaussian_mixture_softmax')
+    mi_test(sample_softmax_argmax)
     Timer.checkpoint()
