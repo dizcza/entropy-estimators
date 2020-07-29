@@ -5,93 +5,13 @@ import numpy as np
 from tqdm import tqdm
 
 from benchmark.entropy_test import generate_normal_correlated
-from estimators import mine_mi, npeet_mi, gcmi_mi
+from benchmark.mutual_information.mutual_information import MutualInfoTest
 from utils.algebra import entropy_normal_theoretic
-from utils.common import set_seed, timer_profile, Timer
-from utils.constants import RESULTS_DIR, TIMINGS_DIR
-
+from utils.common import set_seed, Timer
+from utils.constants import RESULTS_DIR
 
 IMAGES_MUTUAL_INFO_DISTRIBUTIONS_DIR = RESULTS_DIR.joinpath(
     "mutual_information", "images", "distributions")
-
-
-class MITest:
-
-    def __init__(self, x, y, mi_true, verbose=True):
-        if x.ndim == 1:
-            x = np.expand_dims(x, axis=1)
-        if y.ndim == 1:
-            y = np.expand_dims(y, axis=1)
-        self.x = x
-        self.y = y
-        self.mi_true = mi_true
-        self.verbose = verbose
-
-    @timer_profile
-    def npeet(self, k=3):
-        """
-        Non-parametric Entropy Estimation Toolbox.
-
-        Parameters
-        ----------
-        k : int
-            No. of nearest neighbors.
-            See https://github.com/gregversteeg/NPEET/blob/master/npeet_doc.pdf.
-
-        Returns
-        -------
-        float
-            Estimated I(X;Y).
-
-        """
-        x = self.normalize(self.x)
-        y = self.normalize(self.y)
-        return npeet_mi(x, y, k=k)
-
-    @staticmethod
-    def normalize(x):
-        return (x - x.mean()) / x.std()
-
-    @staticmethod
-    def add_noise(x):
-        return x + np.random.normal(
-            loc=0, scale=1e-5, size=x.shape).astype(np.float32)
-
-    @timer_profile
-    def gcmi(self):
-        """
-        Gaussian-Copula Mutual Information.
-
-        Returns
-        -------
-        float
-            Estimated I(X;Y).
-
-        """
-        x = self.normalize(self.x)
-        y = self.normalize(self.y)
-        x = self.add_noise(x.T)
-        y = self.add_noise(y.T)
-        return gcmi_mi(x, y)
-
-    @timer_profile
-    def mine(self):
-        x = self.normalize(self.x)
-        y = self.normalize(self.y)
-        noise_std = 0.1 * np.std(x)
-        return mine_mi(x, y, hidden_units=128, epochs=50, noise_std=noise_std, verbose=self.verbose)
-
-    def run_all(self):
-        estimated = {}
-        for estimator in (self.npeet, self.gcmi, self.mine):
-            try:
-                estimated[estimator.__name__] = estimator()
-            except Exception as e:
-                estimated[estimator.__name__] = np.nan
-        if self.verbose:
-            for estimator_name, estimator_value in estimated.items():
-                print(f"{estimator_name} I(X;Y)={estimator_value:.3f} (true value: {self.mi_true:.3f})")
-        return estimated
 
 
 def _mi_squared_integers(n_samples, n_features, param):
@@ -105,7 +25,8 @@ def _mi_squared_integers(n_samples, n_features, param):
 def _mi_uniform_squared(n_samples, n_features, param):
     assert param >= 1
     x = np.random.uniform(low=0, high=param, size=(n_samples, n_features))
-    y = x ** 2  # y ~ U[0, param ^ 2]
+    y = x ** 2
+    # I(X; Y) = H(X) - H(X|Y) = H(X), since x=sqrt(y) is a deterministic func
     value_true = n_features * np.log2(param)
     return x, y, value_true
 
@@ -137,17 +58,18 @@ def _mi_additive_normal_noise(n_samples, n_features, param):
     return x, y, value_true
 
 
-def mi_test(generator, n_samples=1000, n_features=10, parameters=np.linspace(1, 50, num=10), xlabel=''):
+def mi_test(generator, n_samples=1000, n_features=10,
+            parameters=np.linspace(1, 50, num=10), xlabel=''):
     estimated = defaultdict(list)
     for param in tqdm(parameters, desc=f"{generator.__name__} test"):
         x, y, mi_true = generator(n_samples, n_features, param)
-        estimated_test = MITest(x=x, y=y, mi_true=mi_true, verbose=False).run_all()
+        estimated_test = MutualInfoTest(x=x, y=y, mi_true=mi_true).run_all()
         estimated['true'].append(mi_true)
         for estimator_name, estimator_value in estimated_test.items():
             estimated[estimator_name].append(estimator_value)
     value_true = estimated.pop('true')
     plt.figure()
-    plt.plot(parameters, value_true, label='true', ls='--', marker='x')
+    plt.plot(parameters, value_true, label='true', ls='--', marker='x', markersize=8)
     for estimator_name, estimator_value in estimated.items():
         plt.plot(parameters, estimator_value, label=estimator_name)
     plt.xlabel(xlabel)
@@ -171,8 +93,9 @@ def mi_all_tests(n_samples=10_000, n_features=10):
                    r'\epsilon \sim \mathcal{N}(0,\left(\frac{x}{2}\right)^2$)')
     mi_test(_mi_normal_different_location, n_samples=n_samples, n_features=n_features,
             xlabel=r'$XY \sim \mathcal{N}(\mu, 10^2), \mu \sim $Uniform$(0, x)$')
-    Timer.checkpoint(fpath=TIMINGS_DIR / "mutual_information.txt")
+    Timer.checkpoint()
 
 
 if __name__ == '__main__':
+    set_seed(119)
     mi_all_tests()

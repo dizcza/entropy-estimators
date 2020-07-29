@@ -4,3 +4,6 @@
 [submodule "estimators/gcmi"]
 	path = estimators/gcmi
 	url = https://github.com/robince/gcmi.git
+[submodule "estimators/IDTxl"]
+	path = estimators/IDTxl
+	url = git@github.com:pwollstadt/IDTxl.git

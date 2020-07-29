@@ -1,3 +1,6 @@
-npeet: 3405.442 ms
-gcmi: 56.724 ms
-mine: 2683.995 ms
+npeet: 3121.875 ms
+mine: 3009.920 ms
+idtxl_kraskov: 285.492 ms
+idtxl_gaussian: 178.995 ms
+gcmi_gaussian: 88.183 ms
+gcmi_gaussian_copula: 57.975 ms

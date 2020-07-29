@@ -1,8 +1,6 @@
 """
 Mutual Information Neural Estimation (MINE).
 """
-from collections import deque
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -78,19 +76,21 @@ def mine_mi(x, y, hidden_units=64, noise_std=0., epochs=10,
                         hidden_units=hidden_units)
     mine_trainer = MINE_TrainerMatplot(mine_net)
 
-    mi_last = deque(maxlen=5)
-    mi_last.append(0.)
+    mi_last = []
+    n_last_check_convergence = 10
     mine_trainer.reset()
     for epoch in trange(epochs, desc='Optimizing MINE', disable=not verbose):
         permutation = torch.randperm(x.shape[0])
         x_perm = x[permutation].split(batch_size)
         y_perm = y[permutation].split(batch_size)
         for x_batch, y_batch in zip(x_perm, y_perm):
+            x_batch = x_batch + normal_sampler.sample(x_batch.shape)
             y_batch = y_batch + normal_sampler.sample(y_batch.shape)
             mine_trainer.train_batch(x_batch=x_batch, y_batch=y_batch)
         mi_curr = mine_trainer.get_mutual_info()
         mi_last.append(mi_curr)
-        if len(mi_last) == mi_last.maxlen and np.std(mi_last) < tol:
+        if len(mi_last) >= n_last_check_convergence \
+                and np.std(mi_last[-n_last_check_convergence:]) < tol:
             break
 
     if verbose:

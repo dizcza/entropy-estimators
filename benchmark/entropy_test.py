@@ -7,14 +7,14 @@ from tqdm import tqdm
 from estimators import npeet_entropy, gcmi_entropy
 from utils.algebra import entropy_normal_theoretic
 from utils.common import set_seed, timer_profile, Timer
-from utils.constants import RESULTS_DIR, TIMINGS_DIR
+from utils.constants import RESULTS_DIR
 
 IMAGES_ENTROPY_DIR = RESULTS_DIR / "entropy" / "images"
 
 
 class EntropyTest:
 
-    def __init__(self, x, entropy_true, verbose=True):
+    def __init__(self, x, entropy_true, verbose=False):
         if x.ndim == 1:
             x = np.expand_dims(x, axis=1)
         self.x = x

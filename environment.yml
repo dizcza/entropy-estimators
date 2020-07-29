@@ -1,0 +1,23 @@
+name: entropy-estimators
+
+channels:
+  - conda-forge
+  - pytorch
+
+dependencies:
+  - python>=3.6
+  - pip
+  - pytorch
+  - cpuonly
+  - numpy
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - tqdm
+  - h5py
+  - jpype1
+  - pyopencl
+  - intel-compute-runtime
+  - pip:
+     - -r file:requirements.txt
+     - -e estimators/IDTxl

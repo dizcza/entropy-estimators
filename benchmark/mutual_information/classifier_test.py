@@ -8,14 +8,12 @@ from functools import partial
 from torch.utils.data import TensorDataset
 from tqdm import tqdm, trange
 
-from estimators import mine_mi, discrete_entropy, micd, npeet_entropy, \
-    npeet_mi, gcmi_mi
-from estimators.gcmi.python.gcmi import gcmi_model_cd
+from benchmark.mutual_information.mutual_information import MutualInfoTest
+from estimators import mine_mi, discrete_entropy
 from mighty.models import MLP
 from mighty.utils.algebra import to_onehot
 from utils.common import set_seed, timer_profile, Timer
 from utils.constants import RESULTS_DIR
-
 
 IMAGES_MUTUAL_INFO_CLASSIFIER_DIR = RESULTS_DIR.joinpath(
     "mutual_information", "images", "classifier")
@@ -176,103 +174,26 @@ def sample_softmax_argmax(n_samples=1000, n_classes=10):
     return proba, argmax, mutual_info_true
 
 
-class MutualInfoTest:
+class MutualInfoClassifierTest(MutualInfoTest):
 
-    def __init__(self, x, y, mi_true, verbose=True):
-        x = np.asarray(x, dtype=np.float32)
-        if x.ndim == 1:
-            x = np.expand_dims(x, axis=1)
-        self.x = x
-        self.y = y
-        self.mi_true = mi_true
-        self.verbose = verbose
+    def __init__(self, x, y, mi_true, verbose=False):
+        super().__init__(x=x, y=y, mi_true=mi_true, verbose=verbose)
+        self.y = self.y.squeeze()
         if self.verbose:
             plot_gmm(x=self.x, y=self.y)
-
-    @timer_profile
-    def npeet(self, k=3):
-        """
-        Non-parametric Entropy Estimation Toolbox.
-
-        Parameters
-        ----------
-        k : int
-            No. of nearest neighbors.
-            See https://github.com/gregversteeg/NPEET/blob/master/npeet_doc.pdf.
-
-        Returns
-        -------
-        float
-            Estimated I(X;Y).
-
-        """
-        x = self.normalize(self.x)
-        if self.is_integer(self.y):
-            return micd(x, self.y,
-                        entropy_estimator=partial(npeet_entropy, k=k))
-        y = self.normalize(self.y)
-        return npeet_mi(x, y=y, k=k)
-
-    @staticmethod
-    def normalize(x):
-        return (x - x.mean()) / x.std()
-
-    @staticmethod
-    def is_integer(y):
-        return y.squeeze().ndim == 1 and np.issubdtype(y.dtype, np.integer)
-
-    @staticmethod
-    def add_noise(x):
-        return x + np.random.normal(
-            loc=0, scale=1e-5, size=x.shape).astype(np.float32)
-
-    @timer_profile
-    def gcmi(self):
-        """
-        Gaussian-Copula Mutual Information.
-
-        Returns
-        -------
-        float
-            Estimated I(X;Y).
-
-        """
-        x = self.normalize(self.x)
-        if self.is_integer(self.y):
-            # micd(x, self.y, entropy_estimator=gcmi_entropy) is not stable:
-            # The Cholesky decomposition sometimes cannot be computed from
-            # a subset of X data: x|y=yi. In this case, an error "Matrix is
-            # not positive definite" is thrown.
-            return gcmi_model_cd(x.T, self.y, Ym=len(np.unique(self.y)))
-        y = self.normalize(self.y)
-        y = self.add_noise(y)
-        return gcmi_mi(x.T, y.T)
 
     @timer_profile
     def mine(self):
         x = self.normalize(self.x)
         y = self.y
         if self.y.ndim == 1:
+            # an array of class labels
             y = to_onehot(y)
-        noise_std = 0.1 * np.std(x)
-        return mine_mi(x, y, hidden_units=128, epochs=50, noise_std=noise_std,
-                       verbose=self.verbose)
-
-    def run_all(self):
-        estimated = {}
-        for estimator in (self.npeet, self.gcmi, self.mine):
-            try:
-                estimated[estimator.__name__] = estimator()
-            except Exception as e:
-                estimated[estimator.__name__] = np.nan
-        if self.verbose:
-            for estimator_name, estimator_value in estimated.items():
-                print(
-                    f"{estimator_name} I(X;Y)={estimator_value:.3f} (true value: {self.mi_true:.3f})")
-        return estimated
+        return mine_mi(x, y, hidden_units=128, epochs=30,
+                       noise_std=1e-4, verbose=self.verbose)
 
 
-def mi_test(method='sample_gaussian_mixture', n_samples=10000, n_features=10,
+def mi_test(method='sample_gaussian_mixture', n_samples=10_000, n_features=10,
             parameters=np.linspace(2, 50, num=10, dtype=int),
             xlabel='num. of classes'):
     IMAGES_MUTUAL_INFO_CLASSIFIER_DIR.mkdir(exist_ok=True, parents=True)
@@ -314,21 +235,9 @@ def mi_test(method='sample_gaussian_mixture', n_samples=10000, n_features=10,
     # plt.show()
 
 
-def mi_test_verbose(n_samples=10000, n_features=2,
-                    parameters=np.linspace(30, 50, num=10, dtype=int)):
-    for param in tqdm(parameters, desc=f"test"):
-        gaussian_mixture = GaussianMixture(n_features=n_features,
-                                           n_classes=param, verbose=True)
-        x, y, mi_true = gaussian_mixture.sample_gaussian_mixture_softmax(n_samples)
-        estimated_test = MutualInfoTest(x=x, y=y, mi_true=mi_true,
-                                        verbose=True).gcmi()
-        print(estimated_test)
-
-
 if __name__ == '__main__':
     set_seed(26)
     # plot_gmm()
-    # mi_test_verbose()
     mi_test(method='sample_gaussian_mixture')
     mi_test(method='sample_gaussian_mixture_softmax')
     mi_test(sample_softmax_argmax)
